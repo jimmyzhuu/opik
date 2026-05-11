@@ -63,6 +63,8 @@ public class ServiceTogglesConfig {
     @NotNull boolean customllmProviderEnabled;
     @JsonProperty
     @NotNull boolean ollamaProviderEnabled;
+    @JsonProperty
+    @NotNull boolean agenticToolsEnabled;
 
     @NotNull Set<@NotBlank String> v2WorkspaceAllowlistIds = Set.of();
 
