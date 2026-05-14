@@ -1496,25 +1496,21 @@ export class OpikClient {
 
     let result = unmasked;
 
-    if (unmasked !== null) {
-      const promptId = unmasked.id;
-      if (promptId != null) {
-        const activeMaskId = getActiveMaskForPrompt(promptId);
-        if (activeMaskId !== null) {
-          const maskedFetchFn = async (): Promise<T | null> => {
-            // TODO: pass maskId to backend API when supported
-            return fetchFn();
-          };
-          result = await promptCacheGetOrFetch<T>(
-            options.name,
-            options.commit,
-            resolvedProjectName,
-            expectedStructure,
-            maskedFetchFn,
-            activeMaskId
-          );
-        }
-      }
+    const promptId = unmasked?.id ?? null;
+    const activeMaskId = promptId !== null ? getActiveMaskForPrompt(promptId) : null;
+    if (activeMaskId !== null) {
+      const maskedFetchFn = async (): Promise<T | null> => {
+        // TODO: pass maskId to backend API when supported
+        return fetchFn();
+      };
+      result = await promptCacheGetOrFetch<T>(
+        options.name,
+        options.commit,
+        resolvedProjectName,
+        expectedStructure,
+        maskedFetchFn,
+        activeMaskId
+      );
     }
 
     if (result !== null) {

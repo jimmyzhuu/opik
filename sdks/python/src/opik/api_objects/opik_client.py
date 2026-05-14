@@ -2372,20 +2372,22 @@ class Opik:
         result = unmasked
 
         # Step 2: check for an active mask for this prompt
-        if unmasked is not None:
-            prompt_id = unmasked.__internal_api__prompt_id__
-            if prompt_id is not None:
-                active_mask_id = get_mask_for_prompt(prompt_id)
-                if active_mask_id is not None:
-                    # Step 3: fetch masked version (separate cache entry, no background refresh)
-                    result = prompt_cache.get_or_fetch(
-                        name=name,
-                        commit=commit,
-                        project_name=project_name,
-                        template_structure=template_structure,
-                        fetch_fn=lambda: _fetch(mask_id=active_mask_id),
-                        mask_id=active_mask_id,
-                    )
+        prompt_id = (
+            unmasked.__internal_api__prompt_id__ if unmasked is not None else None
+        )
+        active_mask_id = (
+            get_mask_for_prompt(prompt_id) if prompt_id is not None else None
+        )
+        if active_mask_id is not None:
+            # Step 3: fetch masked version (separate cache entry, no background refresh)
+            result = prompt_cache.get_or_fetch(
+                name=name,
+                commit=commit,
+                project_name=project_name,
+                template_structure=template_structure,
+                fetch_fn=lambda: _fetch(mask_id=active_mask_id),
+                mask_id=active_mask_id,
+            )
 
         if result is not None:
             from opik import context_storage
