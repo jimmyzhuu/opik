@@ -13,7 +13,7 @@ from typing import Any, Callable, Optional
 from ..api_objects import type_helpers
 
 from ..api_objects.agent_config.context import agent_config_context
-from ..api_objects.prompt.mask_context import prompt_mask_context
+from ..api_objects.prompt import mask_context as prompt_mask_context_module
 from .. import id_helpers
 
 from ..rest_api.client import OpikApi
@@ -269,7 +269,7 @@ class InProcessRunnerLoop:
             if inspect.iscoroutinefunction(func):
                 with (
                     agent_config_context(mask_id, blueprint_name),
-                    prompt_mask_context(masks),
+                    prompt_mask_context_module.prompt_mask_context(masks),
                 ):
                     coro = func(**inputs)
                     if timeout:
@@ -281,7 +281,7 @@ class InProcessRunnerLoop:
                 def _run_sync() -> object:
                     with (
                         agent_config_context(mask_id, blueprint_name),
-                        prompt_mask_context(masks),
+                        prompt_mask_context_module.prompt_mask_context(masks),
                     ):
                         return func(**inputs)
 

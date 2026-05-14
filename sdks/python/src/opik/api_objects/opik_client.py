@@ -48,7 +48,7 @@ from .experiment import rest_operations as experiment_rest_operations
 from . import prompt as prompt_module
 from .prompt import client as prompt_client
 from .prompt import prompt_cache
-from .prompt.mask_context import get_mask_for_prompt
+from .prompt import mask_context as prompt_mask_context_module
 from .prompt.text import prompt as text_prompt_module
 from .prompt.chat import chat_prompt as chat_prompt_module
 from ..validation.chat_prompt_messages import ChatPromptMessagesValidator
@@ -2376,7 +2376,9 @@ class Opik:
             unmasked.__internal_api__prompt_id__ if unmasked is not None else None
         )
         active_mask_id = (
-            get_mask_for_prompt(prompt_id) if prompt_id is not None else None
+            prompt_mask_context_module.get_mask_for_prompt(prompt_id)
+            if prompt_id is not None
+            else None
         )
         if active_mask_id is not None:
             # Step 3: fetch masked version (separate cache entry, no background refresh)
