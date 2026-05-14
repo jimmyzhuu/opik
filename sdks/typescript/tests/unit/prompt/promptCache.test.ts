@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { PromptCache, buildCacheKey } from "@/prompt/promptCache";
+import { PromptCache, buildCacheKey, getOrFetch } from "@/prompt/promptCache";
 import type { BasePrompt } from "@/prompt/BasePrompt";
 
 function makeFakePrompt(overrides: Partial<BasePrompt> = {}): BasePrompt {
@@ -161,12 +161,17 @@ describe("PromptCache", () => {
 describe("buildCacheKey", () => {
   it("builds key from all parameters", () => {
     const key = buildCacheKey("my-prompt", "abc123", "my-project", "text");
-    expect(key).toBe("my-prompt|abc123|my-project|text");
+    expect(key).toBe("my-prompt|abc123|my-project|text|");
   });
 
   it("handles undefined commit and project", () => {
     const key = buildCacheKey("my-prompt", undefined, undefined, "chat");
-    expect(key).toBe("my-prompt|||chat");
+    expect(key).toBe("my-prompt|||chat|");
+  });
+
+  it("includes maskId in key", () => {
+    const key = buildCacheKey("my-prompt", undefined, "proj", "text", "mask-1");
+    expect(key).toBe("my-prompt||proj|text|mask-1");
   });
 
   it("produces different keys for different parameters", () => {
@@ -175,5 +180,56 @@ describe("buildCacheKey", () => {
     const key3 = buildCacheKey("prompt", "commit1", "project", "chat");
     expect(key1).not.toBe(key2);
     expect(key1).not.toBe(key3);
+  });
+
+  it("produces different keys for same prompt with and without maskId", () => {
+    const unmasked = buildCacheKey("prompt", undefined, "project", "text");
+    const masked = buildCacheKey("prompt", undefined, "project", "text", "mask-1");
+    expect(unmasked).not.toBe(masked);
+  });
+});
+
+describe("module-level getOrFetch", () => {
+  it("unpinned prompt without maskId sets refreshCallback (background refresh enabled)", async () => {
+    const prompt = makeFakePrompt({ commit: undefined });
+    const fetchFn = vi.fn().mockResolvedValue(prompt);
+
+    const result = await getOrFetch("p", undefined, "proj", "text", fetchFn);
+    expect(result).toBe(prompt);
+    expect(fetchFn).toHaveBeenCalledOnce();
+  });
+
+  it("pinned prompt (commit set) does not set refreshCallback", async () => {
+    const prompt = makeFakePrompt({ commit: "abc1234" });
+    const fetchFn = vi.fn().mockResolvedValue(prompt);
+
+    const result = await getOrFetch("p", "abc1234", "proj", "text", fetchFn);
+    expect(result).toBe(prompt);
+  });
+
+  it("masked unpinned prompt uses maskId in cache key (separate entry from unmasked)", async () => {
+    const prompt1 = makeFakePrompt({ name: "mask-sep-unmasked", id: "id-1" });
+    const prompt2 = makeFakePrompt({ name: "mask-sep-masked", id: "id-2" });
+    const fetchFn1 = vi.fn().mockResolvedValue(prompt1);
+    const fetchFn2 = vi.fn().mockResolvedValue(prompt2);
+
+    const unmasked = await getOrFetch("mask-sep", undefined, "proj", "text", fetchFn1);
+    const masked = await getOrFetch("mask-sep", undefined, "proj", "text", fetchFn2, "mask-1");
+
+    expect(unmasked).toBe(prompt1);
+    expect(masked).toBe(prompt2);
+    expect(fetchFn1).toHaveBeenCalledOnce();
+    expect(fetchFn2).toHaveBeenCalledOnce();
+  });
+
+  it("masked entry is returned from cache on second call without re-fetching", async () => {
+    const prompt = makeFakePrompt();
+    const fetchFn = vi.fn().mockResolvedValue(prompt);
+
+    await getOrFetch("mask-dedup", undefined, "proj", "text", fetchFn, "mask-x");
+    const second = await getOrFetch("mask-dedup", undefined, "proj", "text", fetchFn, "mask-x");
+
+    expect(second).toBe(prompt);
+    expect(fetchFn).toHaveBeenCalledOnce();
   });
 });

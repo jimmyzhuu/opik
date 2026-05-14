@@ -48,6 +48,7 @@ from .experiment import rest_operations as experiment_rest_operations
 from . import prompt as prompt_module
 from .prompt import client as prompt_client
 from .prompt import prompt_cache
+from .prompt.mask_context import get_mask_for_prompt
 from .prompt.text import prompt as text_prompt_module
 from .prompt.chat import chat_prompt as chat_prompt_module
 from ..validation.chat_prompt_messages import ChatPromptMessagesValidator
@@ -2345,12 +2346,13 @@ class Opik:
         project_name = self._resolve_project_name(project_name)
         _prompt_client = prompt_client.PromptClient(self._rest_client)
 
-        def _fetch() -> Optional[_PromptT]:
+        def _fetch(mask_id: Optional[str] = None) -> Optional[_PromptT]:
             prompt_version = _prompt_client.get_prompt(
                 name=name,
                 commit=commit,
                 raise_if_not_template_structure=template_structure,
                 project_name=project_name,
+                # mask_id=mask_id,  # TODO: pass when backend supports it
             )
             if prompt_version is None:
                 return None
@@ -2358,13 +2360,33 @@ class Opik:
                 name, prompt_version, project_name=project_name
             )
 
-        result = prompt_cache.get_or_fetch(
+        # Step 1: fetch unmasked prompt (from cache or backend) to get prompt_id
+        unmasked = prompt_cache.get_or_fetch(
             name=name,
             commit=commit,
             project_name=project_name,
             template_structure=template_structure,
-            fetch_fn=_fetch,
+            fetch_fn=lambda: _fetch(mask_id=None),
         )
+
+        result = unmasked
+
+        # Step 2: check for an active mask for this prompt
+        if unmasked is not None:
+            prompt_id = unmasked.__internal_api__prompt_id__
+            if prompt_id is not None:
+                active_mask_id = get_mask_for_prompt(prompt_id)
+                if active_mask_id is not None:
+                    # Step 3: fetch masked version (separate cache entry, no background refresh)
+                    result = prompt_cache.get_or_fetch(
+                        name=name,
+                        commit=commit,
+                        project_name=project_name,
+                        template_structure=template_structure,
+                        fetch_fn=lambda: _fetch(mask_id=active_mask_id),
+                        mask_id=active_mask_id,
+                    )
+
         if result is not None:
             from opik import context_storage
 
